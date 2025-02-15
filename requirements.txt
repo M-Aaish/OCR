@@ -1,8 +1,8 @@
 streamlit
-opencv-python-headless
-numpy
+opencv-python-headless==4.7.0.72
+numpy==1.21.6
 Pillow
 pytesseract
 easyocr
 paddleocr
-paddlepaddle-gpu==2.6.2
+paddlepaddle==2.6.2
