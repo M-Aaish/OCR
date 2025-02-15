@@ -5,4 +5,4 @@ Pillow
 pytesseract
 easyocr
 paddleocr
-paddlepaddle==2.6.2
+paddlepaddle-gpu==2.6.2
