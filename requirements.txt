@@ -5,5 +5,4 @@ Pillow
 pytesseract
 easyocr
 paddleocr
-# For GPU-enabled PaddlePaddle, uncomment the following line and comment out the CPU version if needed:
-paddlepaddle-gpu==2.5.2
+paddlepaddle-gpu==2.6.2
