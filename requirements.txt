@@ -6,3 +6,5 @@ pytesseract
 easyocr
 paddleocr
 paddlepaddle-gpu==2.6.2
+setuptools>=66.0.0
+wheel
