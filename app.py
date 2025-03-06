@@ -1,84 +1,72 @@
 import streamlit as st
 import cv2
 import numpy as np
-from io import BytesIO
-from PIL import Image
 import time
 
-# Sidebar selector for OCR engine
-ocr_choice = st.sidebar.radio("Select OCR Engine", ["Easy OCR", "Pytesseract OCR", "Paddle OCR"])
+# Import the OCR libraries
+from paddleocr import PaddleOCR
+import easyocr
 
-# File uploader for the image
+# Initialize OCR engines (doing this outside the function avoids re-loading on every run)
+ocr_paddle = PaddleOCR(use_angle_cls=True, lang='en')
+ocr_easy = easyocr.Reader(['en'])
+
+def process_paddleocr(image_bytes):
+    # Convert uploaded bytes to a NumPy array and then decode into an image using OpenCV
+    image_np = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
+    if img is None:
+        st.error("Error: Unable to read the image!")
+        return None, None
+    start_time = time.time()
+    # Run PaddleOCR on the image
+    result = ocr_paddle.ocr(img, det=True, rec=True, cls=True)
+    time_taken = time.time() - start_time
+
+    extracted_text = ""
+    # The result is a list of text lines; each line contains bounding box info and text details.
+    for line in result[0]:
+        extracted_text += line[1][0] + "\n"
+    return extracted_text, time_taken
+
+def process_easyocr(image_bytes):
+    # Convert uploaded bytes to an image that EasyOCR can process
+    image_np = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
+    if img is None:
+        st.error("Error: Unable to read the image!")
+        return None, None
+    start_time = time.time()
+    # Run EasyOCR on the image
+    result = ocr_easy.readtext(img)
+    time_taken = time.time() - start_time
+
+    extracted_text = ""
+    # Each result is a tuple: (bounding_box, text, confidence)
+    for (_, text, _) in result:
+        extracted_text += text + "\n"
+    return extracted_text, time_taken
+
+# Streamlit UI
+st.title("OCR Streamlit App")
+
+# Sidebar radio button to choose between OCR modes
+mode = st.sidebar.radio("Choose OCR Mode", ["EasyOCR", "PaddleOCR"])
+
 uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Read the uploaded file as bytes, then convert to a NumPy array for OpenCV
-    file_bytes = uploaded_file.getvalue()
-    np_arr = np.frombuffer(file_bytes, np.uint8)
-    img_cv2 = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-    # Also create a PIL image (for pytesseract)
-    img_pil = Image.open(BytesIO(file_bytes))
+    # Read image data in bytes and display the image
+    image_bytes = uploaded_file.read()
+    st.image(image_bytes, caption="Uploaded Image", use_column_width=True)
     
-    # Display the uploaded image
-    st.image(img_cv2, channels="BGR", caption="Uploaded Image", use_column_width=True)
+    if mode == "PaddleOCR":
+        st.write("Running PaddleOCR...")
+        text, time_taken = process_paddleocr(image_bytes)
+    else:
+        st.write("Running EasyOCR...")
+        text, time_taken = process_easyocr(image_bytes)
     
-    if ocr_choice == "Pytesseract OCR":
-        # --- Pytesseract OCR ---
-        import pytesseract
-        # Set the tesseract_cmd path if needed, e.g.:
-        # pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
-        
-        # Perform OCR on the PIL image
-        text = pytesseract.image_to_string(img_pil)
-        st.subheader("Extracted Text")
-        st.text(text)
-        
-    elif ocr_choice == "Easy OCR":
-        # --- Easy OCR ---
-        import easyocr
-        # Initialize the EasyOCR reader; change languages if necessary.
-        reader = easyocr.Reader(['en'])
-        # EasyOCR accepts a numpy array; convert to RGB (if desired)
-        img_rgb = cv2.cvtColor(img_cv2, cv2.COLOR_BGR2RGB)
-        results = reader.readtext(img_rgb)
-        
-        # Format the results for display
-        extracted_text = ""
-        for (bbox, text, prob) in results:
-            extracted_text += f"{text} (Confidence: {prob:.2f})\n"
-            
-        st.subheader("Extracted Text")
-        st.text_area("OCR Output", extracted_text, height=200)
-        
-    elif ocr_choice == "Paddle OCR":
-        # --- Paddle OCR ---
-        from paddleocr import PaddleOCR, draw_ocr
-        # Initialize PaddleOCR with angle classification enabled
-        ocr = PaddleOCR(use_angle_cls=True)
-        
-        # Run OCR and measure processing time
-        start_time = time.time()
-        result = ocr.ocr(img_cv2)
-        elapsed_time = time.time() - start_time
-        st.write(f"Time taken for OCR: {elapsed_time:.4f} seconds")
-        
-        # Check if OCR results exist
-        if result and len(result) > 0:
-            # Extract bounding boxes, text, and confidence scores from the first result set.
-            boxes = [line[0] for line in result[0]]
-            txts = [line[1][0] for line in result[0]]
-            scores = [line[1][1] for line in result[0]]
-            
-            # Path to the font file (make sure simfang.ttf is in the same folder)
-            font_path = './simfang.ttf'
-            # Draw the OCR results on the image
-            im_show = draw_ocr(img_cv2, boxes, txts, scores, font_path=font_path)
-            im_show_rgb = cv2.cvtColor(im_show, cv2.COLOR_BGR2RGB)
-            
-            # Display the annotated image and extracted text
-            st.image(im_show_rgb, caption="OCR Result", use_column_width=True)
-            extracted_text = "\n".join(txts)
-            st.subheader("Extracted Text")
-            st.text_area("OCR Output", extracted_text, height=200)
-        else:
-            st.write("No text found.")
+    if text is not None:
+        st.text_area("Extracted Text", text, height=300)
+        st.write(f"Time taken: {time_taken:.2f} seconds")
