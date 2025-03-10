@@ -3,4 +3,4 @@ paddleocr
 easyocr
 opencv-python-headless
 numpy
-paddlepaddle-cpu==2.4.2
+paddlepaddle
